@@ -8,16 +8,17 @@ import numpy as np
 from PIL import Image
 from matplotlib import pyplot as plt
 from scipy import signal, ndimage as ndimage
-
+import cv2
 # from TrafficL_Manager import train_imgs, train_gt, val_imgs, val_gt, test_imgs, test_gt
-from skimage import exposure
+from skimage import exposure, feature
+from skimage.restoration import denoise_nl_means, estimate_sigma
 
 
 def readImage(path):
     return imageio.imread(path)
 
 
-def getNeighbors(image_shape, indices, windown = 40):
+def getNeighbors(image_shape, indices, windown = 80):
     cluster_map = np.zeros(image_shape[:2])
     clusters = []
     for indice in indices:
@@ -147,19 +148,30 @@ def AnalyzeImageClassic(img, show = True):
     return clusters
 
 
-def ProcessChannel(image, threshold_val = 0.3):
+def ProcessChannel(image, threshold_val = 0.1):
     scharr = np.array([[-1/9, -1/9, -1/9],
                        [-1/9, 8/9, -1/9],
                        [-1/9, -1/9, -1/9]])
     # Adaptive Equalization
     # img_adapteq =
-    logspace = np.log(image + 1)
-    # logspace = image
+    # logspace = np.log(image + 1)
+    # sigma_est = np.mean(estimate_sigma(image, multichannel=False))
+
+    patch_kw = dict(patch_size=3,  # 5x5 patches
+                    patch_distance=5    ,  # 13x13 search area
+                    multichannel=False)
+    logspace = image
+    # logspace = denoise_nl_means(image, h=0.6 * sigma_est, fast_mode=True,
+    #                                 **patch_kw)
     grad = (signal.convolve2d(logspace, scharr, boundary='symm', mode='same'))**2
+    # grad = cv2.Canny(image,400 , 600)
+    # plt.figure()
+    # plt.imshow(grad)
     normalized =  grad/ np.max(grad)
     threshold = normalized
-    result = ndimage.maximum_filter(threshold, size=15)
+    result = ndimage.maximum_filter(threshold, size=10)
     threshold = (np.logical_and(threshold == result, threshold >= threshold_val))
+    threshold = np.logical_and(threshold,  feature.canny(image, sigma=3))
     indices = np.argwhere(threshold)
     return indices
 
@@ -173,7 +185,10 @@ def ProcessChannel(image, threshold_val = 0.3):
 
 
 # In[10]:
-path = r"C:\Users\RENT\Desktop\mobileye\CityScapes\leftImg8bit\train\aachen\aachen_000015_000019_leftImg8bit.png"
+# path = r"C:\Users\RENT\Desktop\mobileye\CityScapes\leftImg8bit\test\berlin\berlin_000000_000019_leftImg8bit.png"
+path = r"C:\Users\RENT\Downloads\astrophysics\tubingen_000002_000019_leftImg8bit.png"
+# path = r"C:\Users\RENT\Downloads\astrophysics\frankfurt_000001_007973_leftImg8bit.png"
 g_im = imageio.imread(path)
 AnalyzeImageClassic(g_im)
-# visualize_mag(g_im)
+# visualize_mag(g_im) 1373 377
+# edges2 = feature.canny(g_im[:,:,1], sigma=3)
